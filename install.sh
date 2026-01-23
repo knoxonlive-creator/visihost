@@ -331,7 +331,12 @@ EOF
     
     # Setup cron job
     print_step "Setting up cron job..."
-    (crontab -l 2>/dev/null | grep -v "pterodactyl-wings-backup"; echo "$cron_schedule /usr/local/bin/pterodactyl-wings-backup") | crontab -
+    local temp_cron=$(mktemp)
+    crontab -l 2>/dev/null | grep -v "pterodactyl-wings-backup" > "$temp_cron" || true
+    echo "$cron_schedule /usr/local/bin/pterodactyl-wings-backup > /dev/null 2>&1" >> "$temp_cron"
+    echo "" >> "$temp_cron" # Newline
+    crontab "$temp_cron"
+    rm "$temp_cron"
     print_success "Cron job added: $cron_schedule"
     
     echo ""
@@ -447,7 +452,12 @@ EOF
     
     # Setup cron job
     print_step "Setting up cron job..."
-    (crontab -l 2>/dev/null | grep -v "pterodactyl-panel-backup"; echo "$cron_schedule /usr/local/bin/pterodactyl-panel-backup") | crontab -
+    local temp_cron=$(mktemp)
+    crontab -l 2>/dev/null | grep -v "pterodactyl-panel-backup" > "$temp_cron" || true
+    echo "$cron_schedule /usr/local/bin/pterodactyl-panel-backup > /dev/null 2>&1" >> "$temp_cron"
+    echo "" >> "$temp_cron" # Newline
+    crontab "$temp_cron"
+    rm "$temp_cron"
     print_success "Cron job added: $cron_schedule"
     
     echo ""
