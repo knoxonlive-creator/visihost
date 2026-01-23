@@ -275,6 +275,7 @@ setup_wings_backup() {
     print_info "Backup schedule (cron format)"
     echo "  Examples:"
     echo "    0 3 * * *     = Daily at 3 AM"
+    echo "    */15 * * * *  = Every 15 minutes"
     echo "    0 */6 * * *   = Every 6 hours"
     echo "    0 0 * * 0     = Weekly on Sunday"
     read -p "Cron Schedule [$default_cron]: " cron_schedule
