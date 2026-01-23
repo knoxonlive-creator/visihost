@@ -233,6 +233,7 @@ sync_live_mirror() {
             --exclude ".git/**" \
             --exclude "storage/logs/**" \
             --exclude "storage/framework/cache/**" \
+            --ignore-checksum \
             --log-level ERROR 2>&1
         
         if [ $? -eq 0 ]; then
