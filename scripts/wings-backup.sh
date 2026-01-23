@@ -150,6 +150,7 @@ sync_live_mirror() {
             --exclude "**/node_modules/**" \
             --exclude "**/.git/**" \
             --exclude "**/.npm/**" \
+            --ignore-checksum \
             --log-level ERROR 2>&1
         
         if [ $? -eq 0 ]; then
