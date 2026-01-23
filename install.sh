@@ -243,6 +243,14 @@ setup_wings_backup() {
     local default_max_backups=4
     local default_cron="0 3 * * *"
     
+    # Prompt for Server Name (for backup folder)
+    echo ""
+    print_info "Enter a unique name for this server (e.g., node-1, panel-vps)"
+    read -p "Server Name: " server_name
+    
+    # Auto-generate remote path
+    local default_remote_path="gdrive:visihost/${server_name}/wings"
+    
     # Prompt for directories
     print_info "Enter directories to backup (press Enter for default)"
     echo ""
@@ -345,6 +353,14 @@ setup_panel_backup() {
     local default_max_backups=4
     local default_cron="0 4 * * *"
     
+    # Prompt for Server Name (for backup folder)
+    echo ""
+    print_info "Enter a unique name for this server (e.g., panel-main)"
+    read -p "Server Name: " server_name
+    
+    # Auto-generate remote path
+    local default_remote_path="gdrive:visihost/${server_name}/panel"
+
     # Prompt for directories
     print_info "Enter Panel directory"
     read -p "Panel Directory [$default_panel_dir]: " panel_dir
