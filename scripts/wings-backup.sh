@@ -92,7 +92,7 @@ cleanup_old_backups() {
     
     # Get list of all backups sorted by name (oldest first)
     local backup_list=$(rclone lsd "$REMOTE_HISTORY" 2>/dev/null | awk '{print $5}' | sort)
-    local backup_count=$(echo "$backup_list" | grep -c . 2>/dev/null || echo "0")
+    local backup_count=$(echo "$backup_list" | grep -c . 2>/dev/null || true)
     
     log "Current backups in History: $backup_count (max: $MAX_BACKUPS)"
     
