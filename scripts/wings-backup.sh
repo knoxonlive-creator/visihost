@@ -222,6 +222,7 @@ sync_live_mirror() {
             
             # Create local tarball
             # Note: We allow exit code 1 because game files often change during backup
+            local tar_log="$TEMP_DIR/tar_error.log"
             tar -czf "$local_tar" -C "$(dirname "$GAME_DATA")" "$(basename "$GAME_DATA")" \
                 --exclude="*.log" \
                 --exclude="**/.cache" \
@@ -230,7 +231,7 @@ sync_live_mirror() {
                 --exclude="**/temp" \
                 --exclude="**/node_modules" \
                 --exclude="**/.git" \
-                --exclude="**/.npm" 2>/dev/null
+                --exclude="**/.npm" 2> "$tar_log"
             
             local tar_status=$?
             if [ $tar_status -eq 0 ] || [ $tar_status -eq 1 ]; then
@@ -244,6 +245,7 @@ sync_live_mirror() {
                     
                 local upload_status=$?
                 rm -f "$local_tar"
+                rm -f "$tar_log"
                 
                 if [ $upload_status -eq 0 ]; then
                     log_success "Game data uploaded via Local method"
@@ -253,7 +255,10 @@ sync_live_mirror() {
                     return 1
                 fi
             else
-                log_error "Local compression failed"
+                log_error "Local compression failed (Exit Code: $tar_status)"
+                log_error "Tar Errors:"
+                cat "$tar_log" | tee -a "$LOG_FILE"
+                rm -f "$tar_log"
                 ((errors++))
                 return 1
             fi
