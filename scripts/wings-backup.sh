@@ -221,6 +221,7 @@ sync_live_mirror() {
             mkdir -p "$TEMP_DIR"
             
             # Create local tarball
+            # Note: We allow exit code 1 because game files often change during backup
             tar -czf "$local_tar" -C "$(dirname "$GAME_DATA")" "$(basename "$GAME_DATA")" \
                 --exclude="*.log" \
                 --exclude="**/.cache" \
@@ -230,8 +231,11 @@ sync_live_mirror() {
                 --exclude="**/node_modules" \
                 --exclude="**/.git" \
                 --exclude="**/.npm" 2>/dev/null
+            
+            local tar_status=$?
+            if [ $tar_status -eq 0 ] || [ $tar_status -eq 1 ]; then
+                [ $tar_status -eq 1 ] && log "⚠️  Some files changed during compression (ignoring)"
                 
-            if [ $? -eq 0 ]; then
                 log "Uploading local tarball..."
                 rclone copy "$local_tar" "$REMOTE_LIVE/" \
                     $RCLONE_FLAGS $API_FLAGS \
@@ -272,7 +276,8 @@ sync_live_mirror() {
                 $RCLONE_FLAGS $API_FLAGS \
                 --drive-chunk-size=64M 2>&1
             
-            if [ ${PIPESTATUS[2]} -eq 0 ]; then
+            local rcat_status=${PIPESTATUS[2]}
+            if [ $rcat_status -eq 0 ] || [ $rcat_status -eq 1 ] || [ ${PIPESTATUS[0]} -eq 1 ]; then
                 log_success "Game data uploaded via Streaming method"
             else
                 log_error "Game data upload failed"
@@ -330,9 +335,13 @@ main() {
     sync_live_mirror
     local result=$?
     
-    # Step 3: Create History backup (ONLY if sync succeeded)
+    # Step 3: Create History backup (ONLY if sync succeeded and not skipped)
     if [ $result -eq 0 ]; then
-        create_history_backup
+        if [ "$SKIP_HISTORY" = "true" ] || [ "$SKIP_HISTORY" = "1" ]; then
+            log "⏭️  Skipping History backup (as requested)"
+        else
+            create_history_backup
+        fi
     else
         log_error "Skipping History backup due to sync failures"
     fi

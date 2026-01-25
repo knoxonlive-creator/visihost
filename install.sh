@@ -305,6 +305,7 @@ REMOTE_HISTORY="$remote_path/History"
 
 # Backup Settings
 MAX_BACKUPS=$max_backups
+SKIP_HISTORY="$skip_history"
 BANDWIDTH_LIMIT="$bandwidth_limit"
 TRANSFERS=16
 
@@ -401,6 +402,13 @@ setup_panel_backup() {
     cron_schedule=${cron_schedule:-$default_cron}
     
     echo ""
+    print_info "Keep backup history? (Saves multiple versions/dates)"
+    read -p "Enable History? (y/n) [y]: " enable_history
+    enable_history=${enable_history:-y}
+    local skip_history="false"
+    [[ ! "$enable_history" =~ ^[Yy]$ ]] && skip_history="true"
+    
+    echo ""
     print_info "Discord Webhook for notifications (optional)"
     read -p "Discord Webhook URL: " discord_webhook
     
@@ -426,6 +434,7 @@ REMOTE_HISTORY="$remote_path/History"
 
 # Backup Settings
 MAX_BACKUPS=$max_backups
+SKIP_HISTORY="$skip_history"
 BANDWIDTH_LIMIT="$bandwidth_limit"
 TRANSFERS=16
 

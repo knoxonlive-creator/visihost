@@ -288,6 +288,7 @@ sync_live_mirror() {
         
         # Tar excludes
         # We cd to PANEL_DIR to avoid full paths in tar
+        # Note: We allow exit code 1 because files often change during backup
         tar -czf "$tarball" \
             --exclude="node_modules" \
             --exclude="vendor" \
@@ -296,7 +297,9 @@ sync_live_mirror() {
             --exclude="storage/framework/cache" \
             -C "$(dirname "$PANEL_DIR")" "$(basename "$PANEL_DIR")" 2>/dev/null
             
-        if [ $? -eq 0 ]; then
+        local tar_status=$?
+        if [ $tar_status -eq 0 ] || [ $tar_status -eq 1 ]; then
+            [ $tar_status -eq 1 ] && log "⚠️  Some files changed during compression (ignoring)"
             log_success "Panel compressed: $(du -sh "$tarball" | awk '{print $1}')"
             
             # PURGE old files first to prevent mixed backups (Fixes slow history copy)
@@ -397,9 +400,13 @@ main() {
     sync_live_mirror
     local result=$?
     
-    # Step 4: Create History backup (ONLY if sync succeeded)
+    # Step 4: Create History backup (ONLY if sync succeeded and not skipped)
     if [ $result -eq 0 ]; then
-        create_history_backup
+        if [ "$SKIP_HISTORY" = "true" ] || [ "$SKIP_HISTORY" = "1" ]; then
+            log "⏭️  Skipping History backup (as requested)"
+        else
+            create_history_backup
+        fi
     else
         log_error "Skipping History backup due to sync failures"
     fi
