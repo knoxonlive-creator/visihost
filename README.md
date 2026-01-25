@@ -29,6 +29,14 @@ bash <(curl -s https://raw.githubusercontent.com/knoxonlive-creator/visihost/mai
 | **Wings** | Game data (`/var/lib/pterodactyl/volumes`), Wings config (`/etc/pterodactyl`) |
 | **Panel** | MySQL database, `.env` file, Nginx config, Panel files (optional) |
 
+### ⚡ Performance & Safety
+- 🚀 **Hybrid Backup Strategy** - Automatically chooses the fastest/safest method:
+  - **Local Compression**: Uses local disk if space permits (Fastest & Resume-supported)
+  - **Streaming Mode**: Falls back to `rcat` streaming if disk is full (Zero-space backup)
+- 🔒 **Execution Locking** - Prevents backup overlaps (Critical for cron)
+- 💾 **Disk Safety Checks** - Prevents filling up `/tmp`
+- 🛡️ **API Rate Limiting** - Built-in throttling to prevent Google Drive 429 Bans
+
 ### Smart Features
 - 📁 **LIVE_MIRROR** - Always keeps latest state
 - 📦 **History** - Keeps N backups (configurable)
