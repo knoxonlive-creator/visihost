@@ -5,6 +5,9 @@
 # Keeps only N backups in History
 # ===============================================================
 
+# Ensure PATH covers common locations for rclone/system binaries (CRITICAL for cron)
+export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
 # Load configuration
 CONFIG_FILE="/etc/pterodactyl-backup/panel.conf"
 
@@ -234,6 +237,8 @@ sync_live_mirror() {
             --exclude "storage/logs/**" \
             --exclude "storage/framework/cache/**" \
             --ignore-checksum \
+            --fast-list \
+            --drive-chunk-size 32M \
             --log-level ERROR 2>&1
         
         if [ $? -eq 0 ]; then

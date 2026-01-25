@@ -240,7 +240,7 @@ setup_wings_backup() {
     local default_game_data="/var/lib/pterodactyl/volumes"
     local default_wings_config="/etc/pterodactyl"
     local default_remote_path="gdrive:pterodactyl-backups/wings"
-    local default_max_backups=4
+    local default_max_backups=2
     local default_cron="0 3 * * *"
     
     # Prompt for Server Name (for backup folder)
@@ -356,7 +356,7 @@ setup_panel_backup() {
     # Default values
     local default_panel_dir="/var/www/pterodactyl"
     local default_remote_path="gdrive:pterodactyl-backups/panel"
-    local default_max_backups=4
+    local default_max_backups=2
     local default_cron="0 4 * * *"
     
     # Prompt for Server Name (for backup folder)
