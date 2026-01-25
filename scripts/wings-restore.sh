@@ -172,14 +172,36 @@ do_restore() {
     
     # Restore Game Data
     log "Restoring game data..."
-    if rclone copy "$source/Game_Data" "$GAME_DATA" \
-        --transfers=$TRANSFERS \
-        --bwlimit "$BANDWIDTH_LIMIT" \
-        --progress 2>&1; then
-        log_success "Game data restored"
+    
+    # Check for streaming tarball first (Fast method)
+    if rclone lsf "$source/game_data.tar.gz" >/dev/null 2>&1; then
+        log "Detected streaming backup (Fast Restore)..."
+        
+        # Ensure destination exists
+        mkdir -p "$(dirname "$GAME_DATA")"
+        
+        # Stream download and untar directly (No local temp space!)
+        rclone cat "$source/game_data.tar.gz" $RCLONE_FLAGS | \
+        tar -xzf - -C "$(dirname "$GAME_DATA")" 2>&1
+        
+        if [ ${PIPESTATUS[1]} -eq 0 ]; then
+            log_success "Game data restored from stream"
+        else
+            log_error "Game data stream restore failed"
+            ((errors++))
+        fi
     else
-        log_error "Game data restore failed"
-        ((errors++))
+        # Legacy fallback (Slow method)
+        log "Detected legacy backup (Standard Restore)..."
+        if rclone copy "$source/Game_Data" "$GAME_DATA" \
+            --transfers=$TRANSFERS \
+            --bwlimit "$BANDWIDTH_LIMIT" \
+            --progress 2>&1; then
+            log_success "Game data restored"
+        else
+            log_error "Game data restore failed"
+            ((errors++))
+        fi
     fi
     
     return $errors

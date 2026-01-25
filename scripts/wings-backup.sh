@@ -184,30 +184,32 @@ sync_live_mirror() {
         fi
     fi
     
-    # Sync Game Data
+    # Sync Game Data (Streaming Tarball)
     if [ -d "$GAME_DATA" ]; then
-        log "Syncing game data..."
-        rclone sync "$GAME_DATA" "$REMOTE_LIVE/Game_Data" \
-            --transfers=32 \
-            --checkers=64 \
-            --bwlimit "$BANDWIDTH_LIMIT" \
-            --exclude "*.log" \
-            --exclude "**/.cache/**" \
-            --exclude "**/cache/**" \
-            --exclude "**/tmp/**" \
-            --exclude "**/temp/**" \
-            --exclude "**/node_modules/**" \
-            --exclude "**/.git/**" \
-            --exclude "**/.npm/**" \
-            --ignore-checksum \
-            --fast-list \
-            --drive-chunk-size 128M \
+        log "Syncing game data (Streaming Tarball)..."
+        
+        # We start by purging the old folder if it exists as a directory
+        # (This handles migration from loose files to tarball)
+        rclone purge "$REMOTE_LIVE/Game_Data_Files" --log-level ERROR 2>/dev/null || true
+        
+        # Stream tar directly to Google Drive (No local temp space needed!)
+        tar -cf - -C "$(dirname "$GAME_DATA")" "$(basename "$GAME_DATA")" \
+            --exclude="*.log" \
+            --exclude="**/.cache" \
+            --exclude="**/cache" \
+            --exclude="**/tmp" \
+            --exclude="**/temp" \
+            --exclude="**/node_modules" \
+            --exclude="**/.git" \
+            --exclude="**/.npm" \
+            2>/dev/null | gzip -1 | \
+            rclone rcat "$REMOTE_LIVE/game_data.tar.gz" \
             $RCLONE_FLAGS 2>&1
         
         if [ $? -eq 0 ]; then
-            log_success "Game data synced"
+            log_success "Game data uploaded"
         else
-            log_error "Game data sync failed"
+            log_error "Game data upload failed"
             ((errors++))
         fi
     fi

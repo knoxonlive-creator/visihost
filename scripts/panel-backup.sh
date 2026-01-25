@@ -298,6 +298,10 @@ sync_live_mirror() {
         if [ $? -eq 0 ]; then
             log_success "Panel compressed: $(du -sh "$tarball" | awk '{print $1}')"
             
+            # PURGE old files first to prevent mixed backups (Fixes slow history copy)
+            log "Cleaning old remote files..."
+            rclone purge "$REMOTE_LIVE/Panel_Files/" --log-level ERROR 2>/dev/null || true
+            
             log "Uploading panel tarball..."
             rclone copy "$tarball" "$REMOTE_LIVE/Panel_Files/" \
                 --transfers=32 \
