@@ -188,11 +188,20 @@ sync_live_mirror() {
     if [ -d "$GAME_DATA" ]; then
         log "Syncing game data (Streaming Tarball)..."
         
-        # We start by purging the old folder if it exists as a directory
-        # (This handles migration from loose files to tarball)
-        rclone purge "$REMOTE_LIVE/Game_Data_Files" --log-level ERROR 2>/dev/null || true
+        # 1. Purge the old UNCOMPRESSED folder if it exists
+        # This is critical to stop the "Server Side Copy" from taking forever on thousands of files
+        if rclone lsf "$REMOTE_LIVE/Game_Data/" --dirs-only >/dev/null 2>&1; then
+            log "Cleaning old legacy files (One-time fix)..."
+            rclone purge "$REMOTE_LIVE/Game_Data/" --log-level ERROR 2>/dev/null || true
+        fi
         
-        # Stream tar directly to Google Drive (No local temp space needed!)
+        # Additional cleanup for any other variants
+        rclone purge "$REMOTE_LIVE/Game_Data_Files/" --log-level ERROR 2>/dev/null || true
+        
+        # 2. Add API throttling to prevent 429 Errors
+        API_FLAGS="--tpslimit 10 --drive-pacer-min-sleep 10ms"
+        
+        # Stream tar directly to Google Drive
         tar -cf - -C "$(dirname "$GAME_DATA")" "$(basename "$GAME_DATA")" \
             --exclude="*.log" \
             --exclude="**/.cache" \
@@ -204,13 +213,14 @@ sync_live_mirror() {
             --exclude="**/.npm" \
             2>/dev/null | gzip -1 | \
             rclone rcat "$REMOTE_LIVE/game_data.tar.gz" \
-            $RCLONE_FLAGS 2>&1
+            $RCLONE_FLAGS $API_FLAGS 2>&1
         
-        if [ $? -eq 0 ]; then
+        if [ ${PIPESTATUS[2]} -eq 0 ]; then
             log_success "Game data uploaded"
         else
             log_error "Game data upload failed"
             ((errors++))
+            return 1 # Stop immediately on upload failure
         fi
     fi
     
