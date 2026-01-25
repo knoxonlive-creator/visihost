@@ -22,6 +22,7 @@ fi
 
 # Timestamp for this backup
 TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
+TEMP_DIR="/tmp/wings-backup-$TIMESTAMP"
 
 # Rclone config path (auto-detect)
 RCLONE_CONFIG=""
@@ -135,6 +136,11 @@ check_prerequisites() {
 # =====================================================
 
 cleanup_old_backups() {
+    # Cleanup temp dir
+    if [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
+    fi
+
     log "🗑️ Checking History backup count..."
     
     # Get list of all backups sorted by name (oldest first)
@@ -184,43 +190,95 @@ sync_live_mirror() {
         fi
     fi
     
-    # Sync Game Data (Streaming Tarball)
+    # Sync Game Data
     if [ -d "$GAME_DATA" ]; then
-        log "Syncing game data (Streaming Tarball)..."
+        log "Syncing game data..."
         
-        # 1. Purge the old UNCOMPRESSED folder if it exists
-        # This is critical to stop the "Server Side Copy" from taking forever on thousands of files
+        # Purge legacy folders if they exist
         if rclone lsf "$REMOTE_LIVE/Game_Data/" --dirs-only >/dev/null 2>&1; then
-            log "Cleaning old legacy files (One-time fix)..."
+            log "Cleaning old legacy files..."
             rclone purge "$REMOTE_LIVE/Game_Data/" --log-level ERROR 2>/dev/null || true
         fi
-        
-        # Additional cleanup for any other variants
         rclone purge "$REMOTE_LIVE/Game_Data_Files/" --log-level ERROR 2>/dev/null || true
+
+        # HYBRID STRATEGY: Check disk space for safe local backup
+        local game_size=$(du -sb "$GAME_DATA" | awk '{print $1}')
+        local available_space=$(df -b /tmp | tail -1 | awk '{print $4}') # 1K blocks
+        local available_bytes=$((available_space * 1024))
+        local required_bytes=$((game_size + 1073741824)) # Size + 1GB buffer
         
-        # 2. Add API throttling to prevent 429 Errors (Stricter for shared keys)
+        local use_local_backup=false
+        
+        if [ "$available_bytes" -gt "$required_bytes" ]; then
+            use_local_backup=true
+        fi
+        
         API_FLAGS="--tpslimit 2 --drive-pacer-min-sleep 100ms --retries 5"
-        
-        # Stream tar directly to Google Drive
-        tar -cf - -C "$(dirname "$GAME_DATA")" "$(basename "$GAME_DATA")" \
-            --exclude="*.log" \
-            --exclude="**/.cache" \
-            --exclude="**/cache" \
-            --exclude="**/tmp" \
-            --exclude="**/temp" \
-            --exclude="**/node_modules" \
-            --exclude="**/.git" \
-            --exclude="**/.npm" \
-            2>/dev/null | gzip -1 | \
-            rclone rcat "$REMOTE_LIVE/game_data.tar.gz" \
-            $RCLONE_FLAGS $API_FLAGS 2>&1
-        
-        if [ ${PIPESTATUS[2]} -eq 0 ]; then
-            log_success "Game data uploaded"
+
+        if [ "$use_local_backup" = true ]; then
+            log "Method: Local Compression (Stable & Resumable)"
+            local local_tar="$TEMP_DIR/game_data.tar.gz"
+            mkdir -p "$TEMP_DIR"
+            
+            # Create local tarball
+            tar -czf "$local_tar" -C "$(dirname "$GAME_DATA")" "$(basename "$GAME_DATA")" \
+                --exclude="*.log" \
+                --exclude="**/.cache" \
+                --exclude="**/cache" \
+                --exclude="**/tmp" \
+                --exclude="**/temp" \
+                --exclude="**/node_modules" \
+                --exclude="**/.git" \
+                --exclude="**/.npm" 2>/dev/null
+                
+            if [ $? -eq 0 ]; then
+                log "Uploading local tarball..."
+                rclone copy "$local_tar" "$REMOTE_LIVE/" \
+                    $RCLONE_FLAGS $API_FLAGS \
+                    --transfers=4 \
+                    --drive-chunk-size=64M 2>&1
+                    
+                local upload_status=$?
+                rm -f "$local_tar"
+                
+                if [ $upload_status -eq 0 ]; then
+                    log_success "Game data uploaded via Local method"
+                else
+                    log_error "Game data upload failed"
+                    ((errors++))
+                    return 1
+                fi
+            else
+                log_error "Local compression failed"
+                ((errors++))
+                return 1
+            fi
+            
         else
-            log_error "Game data upload failed"
-            ((errors++))
-            return 1 # Stop immediately on upload failure
+            log "Method: Streaming Upload (Low Disk Space Mode)"
+            
+            # Stream tar directly
+            tar -cf - -C "$(dirname "$GAME_DATA")" "$(basename "$GAME_DATA")" \
+                --exclude="*.log" \
+                --exclude="**/.cache" \
+                --exclude="**/cache" \
+                --exclude="**/tmp" \
+                --exclude="**/temp" \
+                --exclude="**/node_modules" \
+                --exclude="**/.git" \
+                --exclude="**/.npm" \
+                2>/dev/null | gzip -1 | \
+                rclone rcat "$REMOTE_LIVE/game_data.tar.gz" \
+                $RCLONE_FLAGS $API_FLAGS \
+                --drive-chunk-size=64M 2>&1
+            
+            if [ ${PIPESTATUS[2]} -eq 0 ]; then
+                log_success "Game data uploaded via Streaming method"
+            else
+                log_error "Game data upload failed"
+                ((errors++))
+                return 1
+            fi
         fi
     fi
     
