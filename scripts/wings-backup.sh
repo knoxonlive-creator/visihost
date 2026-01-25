@@ -203,7 +203,7 @@ sync_live_mirror() {
 
         # HYBRID STRATEGY: Check disk space for safe local backup
         local game_size=$(du -sb "$GAME_DATA" | awk '{print $1}')
-        local available_space=$(df -b /tmp | tail -1 | awk '{print $4}') # 1K blocks
+        local available_space=$(df -k /tmp | tail -1 | awk '{print $4}') # 1K blocks
         local available_bytes=$((available_space * 1024))
         local required_bytes=$((game_size + 1073741824)) # Size + 1GB buffer
         

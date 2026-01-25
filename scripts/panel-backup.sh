@@ -84,7 +84,8 @@ echo $$ > "$LOCK_FILE"
 
 check_disk_space() {
     local required_mb=2048 # 2GB
-    local available_mb=$(df -m /tmp | tail -1 | awk '{print $4}')
+    local available_space=$(df -k /tmp | tail -1 | awk '{print $4}') # 1K blocks
+    local available_mb=$((available_space / 1024))
     
     if [ "$available_mb" -lt "$required_mb" ]; then
         log_error "Not enough disk space in /tmp. Required: ${required_mb}MB, Available: ${available_mb}MB"
