@@ -6,7 +6,8 @@
 # ===============================================================
 
 # Ensure PATH covers common locations for rclone/system binaries (CRITICAL for cron)
-export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+# Ensure PATH covers common locations for rclone/system binaries (CRITICAL for cron)
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Load configuration
 CONFIG_FILE="/etc/pterodactyl-backup/wings.conf"
@@ -34,6 +35,28 @@ done
 if [ -n "$RCLONE_CONFIG" ]; then
     export RCLONE_CONFIG
 fi
+
+# Fallback for LOG_FILE if not set in config
+if [ -z "$LOG_FILE" ]; then
+    LOG_FILE="/var/log/pterodactyl-backup.log"
+fi
+
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Debug logging for Cron
+echo "[$(date)] Cron started wings-backup.sh" >> /tmp/backup-cron-debug.log
+echo "PATH=$PATH" >> /tmp/backup-cron-debug.log
+
+# Determine Rclone flags (Progress bar if interactive, silent if cron)
+if [ -t 1 ]; then
+    RCLONE_FLAGS="--progress"
+else
+    RCLONE_FLAGS="--log-level ERROR"
+fi
+
+# =====================================================
+
 
 # =====================================================
 # LOGGING FUNCTIONS
@@ -127,9 +150,10 @@ sync_live_mirror() {
     if [ -d "$WINGS_CONFIG" ]; then
         log "Syncing Wings config..."
         rclone sync "$WINGS_CONFIG" "$REMOTE_LIVE/Wings_Config" \
-            --transfers=$TRANSFERS \
+            --transfers=32 \
+            --checkers=64 \
             --bwlimit "$BANDWIDTH_LIMIT" \
-            --log-level ERROR 2>&1
+            $RCLONE_FLAGS 2>&1
         
         if [ $? -eq 0 ]; then
             log_success "Wings config synced"
@@ -143,7 +167,8 @@ sync_live_mirror() {
     if [ -d "$GAME_DATA" ]; then
         log "Syncing game data..."
         rclone sync "$GAME_DATA" "$REMOTE_LIVE/Game_Data" \
-            --transfers=$TRANSFERS \
+            --transfers=32 \
+            --checkers=64 \
             --bwlimit "$BANDWIDTH_LIMIT" \
             --exclude "*.log" \
             --exclude "**/.cache/**" \
@@ -155,8 +180,8 @@ sync_live_mirror() {
             --exclude "**/.npm/**" \
             --ignore-checksum \
             --fast-list \
-            --drive-chunk-size 32M \
-            --log-level ERROR 2>&1
+            --drive-chunk-size 128M \
+            $RCLONE_FLAGS 2>&1
         
         if [ $? -eq 0 ]; then
             log_success "Game data synced"
@@ -178,7 +203,7 @@ create_history_backup() {
     
     # Copy from LIVE_MIRROR to History (server-side copy, fast!)
     if rclone copy "$REMOTE_LIVE" "$REMOTE_HISTORY/$TIMESTAMP" \
-        --log-level ERROR 2>&1; then
+        $RCLONE_FLAGS 2>&1; then
         log_success "History backup created: $TIMESTAMP"
         return 0
     else

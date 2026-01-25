@@ -6,7 +6,8 @@
 # ===============================================================
 
 # Ensure PATH covers common locations for rclone/system binaries (CRITICAL for cron)
-export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+# Ensure PATH covers common locations for rclone/system binaries (CRITICAL for cron)
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Load configuration
 CONFIG_FILE="/etc/pterodactyl-backup/panel.conf"
@@ -37,6 +38,28 @@ done
 if [ -n "$RCLONE_CONFIG" ]; then
     export RCLONE_CONFIG
 fi
+
+# Fallback for LOG_FILE if not set in config
+if [ -z "$LOG_FILE" ]; then
+    LOG_FILE="/var/log/pterodactyl-backup.log"
+fi
+
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Debug logging for Cron
+echo "[$(date)] Cron started panel-backup.sh" >> /tmp/backup-cron-debug.log
+echo "PATH=$PATH" >> /tmp/backup-cron-debug.log
+
+# Determine Rclone flags (Progress bar if interactive, silent if cron)
+if [ -t 1 ]; then
+    RCLONE_FLAGS="--progress"
+else
+    RCLONE_FLAGS="--log-level ERROR"
+fi
+
+# =====================================================
+
 
 # =====================================================
 # LOGGING FUNCTIONS
@@ -193,7 +216,7 @@ sync_live_mirror() {
     if [ -f "$TEMP_DIR/database.sql.gz" ]; then
         log "Syncing database dump..."
         rclone copy "$TEMP_DIR/database.sql.gz" "$REMOTE_LIVE/Database/" \
-            --log-level ERROR 2>&1
+            $RCLONE_FLAGS 2>&1
         
         if [ $? -eq 0 ]; then
             log_success "Database synced"
@@ -207,7 +230,7 @@ sync_live_mirror() {
     if [ -f "$PANEL_DIR/.env" ]; then
         log "Syncing .env file..."
         rclone copy "$PANEL_DIR/.env" "$REMOTE_LIVE/Config/" \
-            --log-level ERROR 2>&1
+            $RCLONE_FLAGS 2>&1
         
         if [ $? -eq 0 ]; then
             log_success ".env synced"
@@ -221,30 +244,45 @@ sync_live_mirror() {
     if [ -f "/etc/nginx/sites-available/pterodactyl.conf" ]; then
         log "Syncing Nginx config..."
         rclone copy "/etc/nginx/sites-available/pterodactyl.conf" "$REMOTE_LIVE/Config/" \
-            --log-level ERROR 2>&1
+            $RCLONE_FLAGS 2>&1
         log_success "Nginx config synced"
     fi
     
     # Full panel sync if BACKUP_SCOPE is 2
     if [ "$BACKUP_SCOPE" = "2" ]; then
-        log "Syncing full panel directory..."
-        rclone sync "$PANEL_DIR" "$REMOTE_LIVE/Panel_Files" \
-            --transfers=$TRANSFERS \
-            --bwlimit "$BANDWIDTH_LIMIT" \
-            --exclude "node_modules/**" \
-            --exclude "vendor/**" \
-            --exclude ".git/**" \
-            --exclude "storage/logs/**" \
-            --exclude "storage/framework/cache/**" \
-            --ignore-checksum \
-            --fast-list \
-            --drive-chunk-size 32M \
-            --log-level ERROR 2>&1
+        log "Compressing panel files (this is much faster)..."
         
+        # Create tarball
+        local tarball="$TEMP_DIR/panel_files.tar.gz"
+        
+        # Tar excludes
+        # We cd to PANEL_DIR to avoid full paths in tar
+        tar -czf "$tarball" \
+            --exclude="node_modules" \
+            --exclude="vendor" \
+            --exclude=".git" \
+            --exclude="storage/logs" \
+            --exclude="storage/framework/cache" \
+            -C "$(dirname "$PANEL_DIR")" "$(basename "$PANEL_DIR")" 2>/dev/null
+            
         if [ $? -eq 0 ]; then
-            log_success "Panel files synced"
+            log_success "Panel compressed: $(du -sh "$tarball" | awk '{print $1}')"
+            
+            log "Uploading panel tarball..."
+            rclone copy "$tarball" "$REMOTE_LIVE/Panel_Files/" \
+                --transfers=32 \
+                --bwlimit "$BANDWIDTH_LIMIT" \
+                --drive-chunk-size 128M \
+                $RCLONE_FLAGS 2>&1
+            
+            if [ $? -eq 0 ]; then
+                log_success "Panel backup uploaded"
+            else
+                log_error "Panel upload failed"
+                ((errors++))
+            fi
         else
-            log_error "Panel files sync failed"
+            log_error "Panel compression failed"
             ((errors++))
         fi
     fi
@@ -260,7 +298,7 @@ create_history_backup() {
     log "📦 Creating History backup: $TIMESTAMP"
     
     if rclone copy "$REMOTE_LIVE" "$REMOTE_HISTORY/$TIMESTAMP" \
-        --log-level ERROR 2>&1; then
+        $RCLONE_FLAGS 2>&1; then
         log_success "History backup created: $TIMESTAMP"
         return 0
     else

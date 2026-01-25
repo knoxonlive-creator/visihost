@@ -221,14 +221,40 @@ do_restore() {
     # Step 4: Restore panel files if full backup
     if [ "$BACKUP_SCOPE" = "2" ]; then
         log "Restoring panel files..."
-        if rclone copy "$source/Panel_Files" "$PANEL_DIR" \
-            --transfers=$TRANSFERS \
-            --bwlimit "$BANDWIDTH_LIMIT" \
-            --progress 2>&1; then
-            log_success "Panel files restored"
+        
+        # Check if we have a tarball backup or legacy folder
+        if rclone lsf "$source/Panel_Files/panel_files.tar.gz" >/dev/null 2>&1; then
+            log "Detected compressed backup (Fast Restore)..."
+            
+            # Download tarball
+            if rclone copy "$source/Panel_Files/panel_files.tar.gz" "$TEMP_DIR/" 2>&1; then
+                log "Extracting panel files..."
+                
+                # Extract to panel dir
+                tar -xzf "$TEMP_DIR/panel_files.tar.gz" -C "$(dirname "$PANEL_DIR")" 2>&1
+                
+                if [ $? -eq 0 ]; then
+                    log_success "Panel files restored from tarball"
+                else
+                    log_error "Panel extraction failed"
+                    ((errors++))
+                fi
+            else
+                log_error "Panel tarball download failed"
+                ((errors++))
+            fi
         else
-            log_error "Panel files restore failed"
-            ((errors++))
+            # Legacy fallback
+            log "Detected legacy backup (Standard Restore)..."
+            if rclone copy "$source/Panel_Files" "$PANEL_DIR" \
+                --transfers=$TRANSFERS \
+                --bwlimit "$BANDWIDTH_LIMIT" \
+                --progress 2>&1; then
+                log_success "Panel files restored"
+            else
+                log_error "Panel files restore failed"
+                ((errors++))
+            fi
         fi
     fi
     
