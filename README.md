@@ -40,6 +40,7 @@ bash <(curl -s https://raw.githubusercontent.com/knoxonlive-creator/visihost/mai
 ### Smart Features
 - 📁 **LIVE_MIRROR** - Always keeps latest state
 - 📦 **History** - Keeps N backups (configurable)
+- ⚖️ **History Skipping** - Option to only keep LIVE_MIRROR (Saves storage & bandwidth)
 - 🗑️ **Auto-cleanup** - Deletes oldest backup when limit reached
 - 🔔 **Discord notifications** - Optional webhook support
 - ⏰ **Cron jobs** - Automatic scheduled backups

@@ -290,6 +290,13 @@ setup_wings_backup() {
     read -p "Bandwidth Limit [50M]: " bandwidth_limit
     bandwidth_limit=${bandwidth_limit:-50M}
     
+    echo ""
+    print_info "Keep backup history? (Saves multiple versions/dates)"
+    read -p "Enable History? (y/n) [y]: " enable_history
+    enable_history=${enable_history:-y}
+    local skip_history="false"
+    [[ ! "$enable_history" =~ ^[Yy]$ ]] && skip_history="true"
+    
     # Save wings config
     cat > "$CONFIG_DIR/wings.conf" << EOF
 # Wings Backup Configuration

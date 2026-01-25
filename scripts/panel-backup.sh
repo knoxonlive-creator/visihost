@@ -380,11 +380,6 @@ main() {
     # Check prerequisites
     check_prerequisites
     
-    # Check disk space
-    if ! check_disk_space; then
-        exit 1
-    fi
-    
     # Check disk space before starting big operations
     if ! check_disk_space; then
         exit 1
