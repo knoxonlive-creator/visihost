@@ -396,8 +396,12 @@ main() {
     sync_live_mirror
     local result=$?
     
-    # Step 4: Create History backup
-    create_history_backup
+    # Step 4: Create History backup (ONLY if sync succeeded)
+    if [ $result -eq 0 ]; then
+        create_history_backup
+    else
+        log_error "Skipping History backup due to sync failures"
+    fi
     
     # Calculate duration
     local end_time=$(date +%s)

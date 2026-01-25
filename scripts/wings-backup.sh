@@ -198,8 +198,8 @@ sync_live_mirror() {
         # Additional cleanup for any other variants
         rclone purge "$REMOTE_LIVE/Game_Data_Files/" --log-level ERROR 2>/dev/null || true
         
-        # 2. Add API throttling to prevent 429 Errors
-        API_FLAGS="--tpslimit 10 --drive-pacer-min-sleep 10ms"
+        # 2. Add API throttling to prevent 429 Errors (Stricter for shared keys)
+        API_FLAGS="--tpslimit 2 --drive-pacer-min-sleep 100ms --retries 5"
         
         # Stream tar directly to Google Drive
         tar -cf - -C "$(dirname "$GAME_DATA")" "$(basename "$GAME_DATA")" \
@@ -272,8 +272,12 @@ main() {
     sync_live_mirror
     local result=$?
     
-    # Step 3: Create History backup (copy from LIVE_MIRROR)
-    create_history_backup
+    # Step 3: Create History backup (ONLY if sync succeeded)
+    if [ $result -eq 0 ]; then
+        create_history_backup
+    else
+        log_error "Skipping History backup due to sync failures"
+    fi
     
     # Calculate duration
     local end_time=$(date +%s)
