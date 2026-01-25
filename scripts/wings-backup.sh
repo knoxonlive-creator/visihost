@@ -59,6 +59,27 @@ fi
 
 
 # =====================================================
+# LOCKING
+# =====================================================
+
+LOCK_FILE="/var/run/pterodactyl-wings-backup.lock"
+
+# Check Lock
+if [ -f "$LOCK_FILE" ]; then
+    PID=$(cat "$LOCK_FILE")
+    if ps -p "$PID" > /dev/null; then
+        echo "⚠️  Backup ready running (PID: $PID). Exiting."
+        exit 1
+    else
+        echo "⚠️  Stale lock file found. Removing."
+        rm -f "$LOCK_FILE"
+    fi
+fi
+
+# Create lock
+echo $$ > "$LOCK_FILE"
+
+# =====================================================
 # LOGGING FUNCTIONS
 # =====================================================
 
@@ -253,6 +274,7 @@ main() {
     log "════════════════════════════════════════════════════"
     if [ $result -eq 0 ]; then
         log_success "Backup Completed Successfully"
+        rm -f "$LOCK_FILE"
         log "Duration: ${duration}s"
         log "History Backups: $final_count/$MAX_BACKUPS"
         log "════════════════════════════════════════════════════"
@@ -265,6 +287,7 @@ main() {
         exit 0
     else
         log_error "Backup Completed with errors"
+        rm -f "$LOCK_FILE"
         log "════════════════════════════════════════════════════"
         
         send_discord "❌ **Wings Backup Failed**

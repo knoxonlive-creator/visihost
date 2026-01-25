@@ -62,6 +62,36 @@ fi
 
 
 # =====================================================
+# LOCKING & VALIDATION
+# =====================================================
+
+LOCK_FILE="/var/run/pterodactyl-panel-backup.lock"
+
+# Check Lock
+if [ -f "$LOCK_FILE" ]; then
+    PID=$(cat "$LOCK_FILE")
+    if ps -p "$PID" > /dev/null; then
+        echo "⚠️  Backup ready running (PID: $PID). Exiting."
+        exit 1
+    else
+        echo "⚠️  Stale lock file found. Removing."
+        rm -f "$LOCK_FILE"
+    fi
+fi
+
+# Create lock
+echo $$ > "$LOCK_FILE"
+
+check_disk_space() {
+    local required_mb=2048 # 2GB
+    local available_mb=$(df -m /tmp | tail -1 | awk '{print $4}')
+    
+    if [ "$available_mb" -lt "$required_mb" ]; then
+        log_error "Not enough disk space in /tmp. Required: ${required_mb}MB, Available: ${available_mb}MB"
+        return 1
+    fi
+    return 0
+}
 # LOGGING FUNCTIONS
 # =====================================================
 
@@ -315,6 +345,8 @@ cleanup_temp() {
     if [ -d "$TEMP_DIR" ]; then
         rm -rf "$TEMP_DIR"
     fi
+    # Remove lock
+    rm -f "$LOCK_FILE"
 }
 
 # =====================================================
@@ -339,6 +371,16 @@ main() {
     
     # Check prerequisites
     check_prerequisites
+    
+    # Check disk space
+    if ! check_disk_space; then
+        exit 1
+    fi
+    
+    # Check disk space before starting big operations
+    if ! check_disk_space; then
+        exit 1
+    fi
     
     # Step 1: Backup database
     backup_database
